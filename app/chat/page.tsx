@@ -30,7 +30,7 @@ export default function ChatPage() {
   useEffect(() => {
     const base = getApiBase();
     fetchJson<MarketSnapshot | { error?: string }>(`${base}/api/context`)
-      .then((data) => setContext("error" in data ? null : data))
+      .then((data) => setContext("error" in data && data.error ? null : (data as MarketSnapshot)))
       .catch(() => setContext(null));
   }, []);
 
