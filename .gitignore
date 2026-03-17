@@ -1,0 +1,13 @@
+# 환경 변수·비밀 (절대 커밋하지 않음)
+.env
+.env.local
+.env.*.local
+*.pem
+
+# API 키·시크릿 파일
+*secret*
+*credentials*
+
+# Next.js / Node
+.next
+node_modules
