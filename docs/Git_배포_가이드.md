@@ -35,7 +35,7 @@ git status
 ```powershell
 git commit -m "Initial commit"
 git branch -M main
-git remote add origin https://github.com/본인아이디/quant-trader.git
+git remote add origin https://github.com/cowmax1234/quant-trader.git
 git push -u origin main
 ```
 
