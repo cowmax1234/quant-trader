@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { getApiBase } from "@/lib/apiBase";
+import { fetchJson } from "@/lib/fetchJson";
 
 type ChatMessage = { role: "user" | "model"; content: string };
 type MarketSnapshot = {
@@ -28,9 +29,8 @@ export default function ChatPage() {
 
   useEffect(() => {
     const base = getApiBase();
-    fetch(`${base}/api/context`)
-      .then((r) => r.json())
-      .then((data) => setContext(data))
+    fetchJson<MarketSnapshot | { error?: string }>(`${base}/api/context`)
+      .then((data) => setContext("error" in data ? null : data))
       .catch(() => setContext(null));
   }, []);
 
@@ -60,7 +60,11 @@ export default function ChatPage() {
           history: messages,
         }),
       });
-      const data = await res.json();
+      const contentType = res.headers.get("content-type") ?? "";
+      if (!contentType.includes("application/json")) {
+        throw new Error("서버가 JSON 대신 HTML을 반환했습니다. API 경로·배포를 확인하세요.");
+      }
+      const data = await res.json() as { error?: string; text?: string };
 
       if (!res.ok) {
         setError(data.error ?? "응답을 받지 못했습니다.");

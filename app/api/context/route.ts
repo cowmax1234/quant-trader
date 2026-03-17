@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getMarketSnapshot } from "@/lib/marketContext";
+import { getMarketSnapshotLegacy } from "@/lib/marketContext";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "http://localhost:3003",
@@ -14,7 +14,7 @@ export async function OPTIONS() {
 /** GET: 현재 시장 스냅샷 (비트코인, 환율 등) - 대시보드/채팅 화면 표시용 */
 export async function GET() {
   try {
-    const snapshot = await getMarketSnapshot();
+    const snapshot = await getMarketSnapshotLegacy();
     return NextResponse.json(snapshot, { headers: CORS_HEADERS });
   } catch (e) {
     console.error("[api/context]", e);

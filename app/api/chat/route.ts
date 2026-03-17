@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
-import { getMarketContextText } from "@/lib/marketContext";
+import {
+  getMarketSnapshot,
+  recordMarketData,
+  type MarketSnapshot,
+} from "@/lib/marketContext";
+import {
+  getPortfolioSnapshot,
+  recordPortfolioLog,
+  type PortfolioSnapshot,
+} from "@/lib/portfolio";
+import { FEES_CONTEXT_FOR_AI } from "@/lib/fees";
 
-const BASE_SYSTEM =
-  "당신은 퀀트 트레이딩 대시보드의 AI 어시스턴트입니다. " +
-  "사용자는 Upbit·Binance 등에서 암호화폐를 거래합니다. " +
-  "질문에 친절하고 간결하게 답하되, 투자 조언·매매 권유는 하지 말고 정보 제공에만 그치세요. " +
-  "답변은 한국어로 해주세요.";
+const QUANT_PERSONA =
+  "너는 냉철한 퀀트 트레이더다. 사용자의 시드 5,000만 원을 기준으로 현재 김치 프리미엄(김프)과 바이낸스 펀딩비를 분석해, 최적의 포지션(델타 뉴트럴 vs 네이키드 롱/숏)을 원화 기대 수익과 함께 제안해라. 반드시 거래 수수료를 차감한 Net Profit(순 수익)만 제시하라. 답변은 한국어로, 수치와 근거를 명확히 제시하라.";
 
 export type ChatMessage = { role: "user" | "model"; content: string };
 
@@ -18,6 +25,36 @@ const CORS_HEADERS = {
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
+
+function buildQuantContext(
+  market: MarketSnapshot,
+  portfolio: PortfolioSnapshot
+): string {
+  const usdKrw = market.usdKrwRate ?? 0;
+  const totalBalanceKrw =
+    portfolio.upbitKrwBalance +
+    portfolio.binanceUsdtBalance * (usdKrw > 0 ? usdKrw : 0);
+
+  const lines: string[] = [
+    "[현재 포트폴리오 (Supabase 기준)]",
+    `시드(원화): ${portfolio.totalSeedKrw.toLocaleString("ko-KR")}원`,
+    `Upbit KRW 잔고: ${portfolio.upbitKrwBalance.toLocaleString("ko-KR")}원`,
+    `Binance USDT 잔고: ${portfolio.binanceUsdtBalance.toLocaleString("en-US", { maximumFractionDigits: 2 })} USDT`,
+    `총 자산(원화 환산): ${totalBalanceKrw.toLocaleString("ko-KR")}원`,
+    "",
+    "[실시간 퀀트 지표]",
+    `Upbit BTC/KRW(호가 중간가): ${market.upbitBtcKrw != null ? market.upbitBtcKrw.toLocaleString("ko-KR") : "—"}원`,
+    `Binance BTC/USDT(호가 중간가): ${market.binanceBtcUsdt != null ? market.binanceBtcUsdt.toLocaleString("en-US", { maximumFractionDigits: 2 }) : "—"} USDT`,
+    `환율(1 USD = X KRW): ${market.usdKrwRate != null ? market.usdKrwRate.toLocaleString("ko-KR") : "—"}원`,
+    `김치 프리미엄: ${market.kimchiPremium != null ? market.kimchiPremium.toFixed(2) + "%" : "—"}`,
+    `바이낸스 펀딩비(BTCUSDT, 8시간당 %): ${market.fundingRate != null ? (market.fundingRate * 100).toFixed(4) + "%" : "—"} (API 원본은 소수이므로 ×100 해서 %로 표기함)`,
+    "",
+    FEES_CONTEXT_FOR_AI,
+    "",
+    "위 데이터와 수수료를 반드시 반영해 포지션과 수수료 차감 후 원화 기대 수익(Net Profit)을 제안하라.",
+  ];
+  return lines.join("\n");
 }
 
 export async function POST(req: NextRequest) {
@@ -55,12 +92,20 @@ export async function POST(req: NextRequest) {
     : [];
 
   try {
-    const marketContext = await getMarketContextText();
-    const systemInstruction = `${BASE_SYSTEM}\n\n${marketContext}`;
+    // 1) 시장 데이터 조회 → Supabase 기록
+    const marketSnapshot = await getMarketSnapshot();
+    await recordMarketData(marketSnapshot);
+
+    // 2) 포트폴리오 조회 → Supabase 기록
+    const portfolioSnapshot = await getPortfolioSnapshot();
+    await recordPortfolioLog(portfolioSnapshot);
+
+    // 3) Gemini 시스템 프롬프트에 퀀트 컨텍스트 주입
+    const quantContext = buildQuantContext(marketSnapshot, portfolioSnapshot);
+    const systemInstruction = `${QUANT_PERSONA}\n\n${quantContext}`;
 
     const ai = new GoogleGenAI({ apiKey });
 
-    // 대화 이력 + 현재 사용자 메시지를 Content 배열로 구성
     const contents: { role: "user" | "model"; parts: { text: string }[] }[] = [];
     for (const m of history) {
       contents.push({
@@ -74,11 +119,11 @@ export async function POST(req: NextRequest) {
     });
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-1.5-flash",
       contents,
       config: {
         systemInstruction,
-        temperature: 0.7,
+        temperature: 0.5,
       },
     });
 

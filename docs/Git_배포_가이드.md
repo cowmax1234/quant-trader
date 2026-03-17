@@ -87,9 +87,36 @@ pm2 save
 
 ## 2단계: 배포할 때마다 (일상)
 
-### PC에서: 코드 올리기
+### 방법 A: 한 번에 배포 (권장)
 
-수정한 뒤, 프로젝트 폴더에서:
+PC에서 **PowerShell**로 아래 한 줄만 실행하면, **로컬에서 커밋·push → 로컬 빌드 → 서버에 .next 업로드 → pm2 재시작**까지 자동으로 진행됩니다.  
+(서버 t2.micro는 메모리 부족으로 빌드가 실패할 수 있어, 로컬 빌드 결과를 zip으로 올리는 방식입니다.)
+
+```powershell
+cd C:\Users\ksy\OneDrive\문서\quant_trader
+.\scripts\deploy.ps1
+```
+
+커밋 메시지를 넣으려면:
+
+```powershell
+.\scripts\deploy.ps1 "CORS 추가 및 채팅 수정"
+```
+
+SSH 키가 `C:\Users\ksy\OneDrive\Desktop\my-quant-key.pem` 이 아닐 경우, 배포 전에:
+
+```powershell
+$env:DEPLOY_SSH_KEY = "C:\경로\본인키.pem"
+.\scripts\deploy.ps1
+```
+
+끝나면 **http://15.135.65.106:3003** 에서 확인하면 됩니다.
+
+---
+
+### 방법 B: Git만 올리고, 서버에서 빌드
+
+**PC에서:** 코드만 올리기
 
 ```powershell
 cd C:\Users\ksy\OneDrive\문서\quant_trader
@@ -98,29 +125,26 @@ git commit -m "메시지 아무거나"
 git push
 ```
 
-### 서버에서: 받아서 반영하기
-
-SSH 접속한 뒤, **아래 한 줄**만 실행:
+**서버에서:** SSH 접속한 뒤 한 줄 실행 (서버 메모리가 충분할 때만 성공할 수 있음)
 
 ```bash
-cd ~/quant_trader && git pull && npm install && npm run build && pm2 restart quant-trader
+cd ~/quant_trader/quant_trader && git pull && npm install && npm run build && pm2 restart quant-trader
 ```
 
-끝나면 **http://15.135.65.106:3003** 에서 새 코드가 적용된 걸 확인하면 됩니다.
+서버에서 `npm run build` 시 SIGBUS(메모리 부족)가 나면 **방법 A**를 사용하세요.
 
 ---
 
-## (선택) 서버에서 배포 스크립트 쓰기
+## (선택) 서버만 배포 스크립트 쓰기
 
-서버에 `scripts/deploy.sh` 가 있으면, 배포할 때 이렇게만 해도 됩니다:
+서버에 `scripts/deploy.sh` 가 있으면, **서버에 SSH 접속한 뒤** 이렇게만 해도 됩니다 (로컬에서 방법 A 대신 수동으로 push 후 서버에서만 실행할 때):
 
 ```bash
-cd ~/quant_trader
+cd ~/quant_trader/quant_trader
 bash scripts/deploy.sh
 ```
 
-내용은 `git pull → npm install → npm run build → pm2 restart` 입니다.  
-한 번 설정해 두면 **git push → SSH 접속 → bash scripts/deploy.sh** 만 기억하면 됩니다.
+단, t2.micro에서는 `npm run build` 가 메모리 부족으로 실패할 수 있으므로, **일상 배포는 PC에서 `.\scripts\deploy.ps1` (방법 A)** 를 쓰는 것을 권장합니다.
 
 ---
 
@@ -128,7 +152,8 @@ bash scripts/deploy.sh
 
 | 구분 | 할 일 |
 |------|--------|
-| **최초 1회** | GitHub 비공개 저장소 생성 → 로컬 `git init` & push → 서버에서 clone & .env & npm install & build & pm2 start |
-| **이후 배포** | PC: `git add` → `git commit` → `git push` / 서버: `cd ~/quant_trader && git pull && npm install && npm run build && pm2 restart quant-trader` |
+| **최초 1회** | GitHub 저장소 생성 → 로컬 `git init` & push → 서버에서 clone & .env & npm install & pm2 start (빌드는 로컬에서 후에 방법 A로 올림) |
+| **이후 배포 (권장)** | PC에서: `cd 프로젝트폴더` 후 `.\scripts\deploy.ps1` 한 번 실행 (커밋·push·로컬 빌드·업로드·pm2 재시작 자동) |
+| **이후 배포 (수동)** | PC: `git push` / 서버: `cd ~/quant_trader/quant_trader && git pull && npm install && npm run build && pm2 restart quant-trader` (서버 빌드 가능할 때만) |
 
 `.env`는 서버에만 두고, Git에는 절대 올리지 않습니다.

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const menu = [
   { href: "/", label: "Home" },
+  { href: "/dashboard", label: "대시보드" },
   { href: "/assets", label: "자산 현황" },
   { href: "/chat", label: "시장 인사이트" },
 ];
