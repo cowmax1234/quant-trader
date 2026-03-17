@@ -242,7 +242,7 @@ export default function DashboardPage() {
                   borderRadius: 8,
                 }}
                 labelStyle={{ color: "var(--text)" }}
-                formatter={(value: number) => [`${value}%`, "김치프리미엄"]}
+                formatter={(value) => [typeof value === "number" ? `${value}%` : "—", "김치프리미엄"]}
               />
               <Line
                 type="monotone"
