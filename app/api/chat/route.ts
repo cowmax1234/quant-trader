@@ -10,12 +10,22 @@ const BASE_SYSTEM =
 
 export type ChatMessage = { role: "user" | "model"; content: string };
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "http://localhost:3003",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
+
 export async function POST(req: NextRequest) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
       { error: "GEMINI_API_KEY가 설정되지 않았습니다. .env에 추가해 주세요." },
-      { status: 503 }
+      { status: 503, headers: CORS_HEADERS }
     );
   }
 
@@ -25,7 +35,7 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json(
       { error: "요청 본문이 올바른 JSON이 아닙니다." },
-      { status: 400 }
+      { status: 400, headers: CORS_HEADERS }
     );
   }
 
@@ -33,7 +43,7 @@ export async function POST(req: NextRequest) {
   if (!message) {
     return NextResponse.json(
       { error: "message 필드가 비어 있습니다." },
-      { status: 400 }
+      { status: 400, headers: CORS_HEADERS }
     );
   }
 
@@ -73,7 +83,7 @@ export async function POST(req: NextRequest) {
     });
 
     const text = response.text ?? "";
-    return NextResponse.json({ text });
+    return NextResponse.json({ text }, { headers: CORS_HEADERS });
   } catch (e) {
     console.error("[api/chat]", e);
     const err = e as { message?: string; status?: number };
@@ -82,7 +92,7 @@ export async function POST(req: NextRequest) {
         error:
           err?.message ?? "Gemini 응답 생성 중 오류가 발생했습니다.",
       },
-      { status: 500 }
+      { status: 500, headers: CORS_HEADERS }
     );
   }
 }
